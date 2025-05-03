@@ -9,6 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // We'll add headers later if needed
 }
 
 export default nextConfig

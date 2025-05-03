@@ -1,55 +1,123 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-model User {
-  id    String  @id @default(cuid())
-  email String  @unique
-  name  String?
-  tasks Task[]
-}
-
-model Task {
-  id        String   @id @default(cuid())
-  title     String
-  completed Boolean  @default(false)
-  category  String?
-  categoryColor String?
-  subtasks  Json?
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:./dev.db"
 }
 
 generator client {
   provider = "prisma-client-js"
 }
+
 model User {
-  id    String  @id @default(cuid())
-  email String  @unique
-  name  String?
-  tasks Task[]
+  id                String         @id @default(cuid())
+  email             String         @unique
+  name              String?
+  image             String?
+  hashedPassword    String?        // For email/password auth
+  externalId        String?        // ID from external provider (Google, etc.)
+  personalTasks     Task[]         @relation("UserTasks")
+  groupTasksOwned   GroupTask[]    @relation("GroupTaskOwner")
+  groupTasksAssigned GroupTaskAssignee[]
+  friendsInitiated  Friendship[]   @relation("FriendshipInitiator")
+  friendsReceived   Friendship[]   @relation("FriendshipReceiver")
+  comments          Comment[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  
+  // NextAuth.js Models
+  accounts          Account[]
+  sessions          Session[]
 }
+
+model Account {
+  id                 String   @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model Task {
-  id        String   @id @default(cuid())
-  title     String
-  completed Boolean  @default(false)
-  category  String?
+  id            String    @id @default(cuid())
+  title         String
+  completed     Boolean   @default(false)
+  category      String?
   categoryColor String?
-  subtasks  Json?
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  subtasks      Json?
+  dueDate       DateTime?
+  user          User      @relation("UserTasks", fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model GroupTask {
+  id            String              @id @default(cuid())
+  title         String
+  completed     Boolean             @default(false)
+  category      String?
+  categoryColor String?
+  subtasks      Json?
+  dueDate       DateTime?
+  owner         User                @relation("GroupTaskOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId       String
+  assignees     GroupTaskAssignee[]
+  comments      Comment[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+model GroupTaskAssignee {
+  id          String    @id @default(cuid())
+  groupTask   GroupTask @relation(fields: [groupTaskId], references: [id], onDelete: Cascade)
+  groupTaskId String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  status      String    @default("pending") // pending, completed
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([groupTaskId, userId])
+}
+
+model Comment {
+  id          String    @id @default(cuid())
+  content     String
+  groupTask   GroupTask @relation(fields: [groupTaskId], references: [id], onDelete: Cascade)
+  groupTaskId String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  initiator   User     @relation("FriendshipInitiator", fields: [initiatorId], references: [id], onDelete: Cascade)
+  initiatorId String
+  receiver    User     @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  receiverId  String
+  status      String   @default("pending") // pending, accepted, rejected
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([initiatorId, receiverId])
 }

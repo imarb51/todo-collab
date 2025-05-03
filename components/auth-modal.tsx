@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,94 +15,53 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
-  const [activeTab, setActiveTab] = useState("login")
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleGoogleSignIn = async () => {
-    await signIn("google", { callbackUrl: "/dashboard" })
+    try {
+      setIsLoading(true)
+      console.log("Starting Google sign-in process...")
+      await signIn("google", { 
+        callbackUrl: "/dashboard"
+      })
+    } catch (error) {
+      console.error("Google sign-in error:", error)
+      setIsLoading(false)
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden backdrop-blur-xl bg-white/80 border border-violet-100 shadow-xl rounded-2xl">
-        <DialogTitle className="sr-only">Authentication</DialogTitle>
-        <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-2 w-full rounded-none">
-            <TabsTrigger value="login" className="data-[state=active]:bg-violet-50 py-4">
-              Login
-            </TabsTrigger>
-            <TabsTrigger value="signup" className="data-[state=active]:bg-violet-50 py-4">
-              Signup
-            </TabsTrigger>
-          </TabsList>
-
-          <div className="p-6">
-            <TabsContent value="login" className="mt-0">
-              <form
-                className="space-y-4"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  onOpenChange(false)
-                }}
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" placeholder="your@email.com" className="h-12" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input id="password" type="password" placeholder="••••••••" className="h-12" />
-                </div>
-                <Button type="submit" className="w-full h-12 bg-violet-600 hover:bg-violet-700">
-                  Login
-                </Button>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="signup" className="mt-0">
-              <form
-                className="space-y-4"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  onOpenChange(false)
-                }}
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input id="signup-email" type="email" placeholder="your@email.com" className="h-12" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input id="signup-password" type="password" placeholder="••••••••" className="h-12" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm Password</Label>
-                  <Input id="confirm-password" type="password" placeholder="••••••••" className="h-12" />
-                </div>
-                <Button type="submit" className="w-full h-12 bg-violet-600 hover:bg-violet-700">
-                  Create Account
-                </Button>
-              </form>
-            </TabsContent>
-
-            <div className="mt-6 relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-violet-200" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-violet-500">Or continue with</span>
-              </div>
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full mt-6 h-12 border-violet-200 hover:bg-violet-50"
-              onClick={handleGoogleSignIn}
-            >
-              <Google className="mr-2 h-4 w-4" />
-              Continue with Google
-            </Button>
+      <DialogContent className="sm:max-w-md p-6 overflow-hidden backdrop-blur-xl bg-white/80 dark:bg-gray-800/90 border border-violet-100 dark:border-violet-800 shadow-xl rounded-2xl" aria-describedby="auth-description">
+        <DialogTitle className="text-xl font-bold text-center mb-2">Welcome to Todo Collab</DialogTitle>
+        <DialogDescription id="auth-description" className="text-center mb-6">
+          Sign in with your Google account to continue
+        </DialogDescription>
+        
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <div className="w-16 h-16 bg-violet-100 dark:bg-violet-900 rounded-full flex items-center justify-center mb-2">
+            <Google className="h-8 w-8 text-violet-600 dark:text-violet-300" />
           </div>
-        </Tabs>
+          
+          <p className="text-sm text-center text-gray-500 dark:text-gray-400 mb-4">
+            We use Google for authentication to provide a secure and seamless experience.
+            Your account will be created automatically if you don't already have one.
+          </p>
+          
+          <Button
+            type="button"
+            className="w-full h-12 bg-violet-600 hover:bg-violet-700 text-white flex items-center justify-center gap-2"
+            onClick={handleGoogleSignIn}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+            ) : (
+              <Google className="h-5 w-5" />
+            )}
+            {isLoading ? 'Signing in...' : 'Continue with Google'}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   )

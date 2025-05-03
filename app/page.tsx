@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CheckCircle, Users, Calendar, ListChecks, ChevronRight } from "lucide-react"
@@ -9,9 +9,9 @@ import { motion, HTMLMotionProps } from "framer-motion"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { signIn } from "next-auth/react"
 
-type MotionDivProps = HTMLMotionProps<"div">
-type MotionH1Props = HTMLMotionProps<"h1">
-type MotionPProps = HTMLMotionProps<"p">
+type MotionDivProps = HTMLMotionProps<"div"> & { className?: string }
+type MotionH1Props = HTMLMotionProps<"h1"> & { className?: string }
+type MotionPProps = HTMLMotionProps<"p"> & { className?: string }
 
 const MotionDiv = motion.div as React.FC<MotionDivProps>
 const MotionH1 = motion.h1 as React.FC<MotionH1Props>
@@ -24,24 +24,108 @@ export default function HomePage() {
   const [name, setName] = useState("")
   const [isAuthOpen, setIsAuthOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
+  
+  // Handle client-side only code to prevent hydration issues
+  useEffect(() => {
+    setMounted(true)
+    
+    // Check for error in URL
+    const searchParams = new URLSearchParams(window.location.search)
+    const error = searchParams.get('error')
+    if (error) {
+      console.error("Auth error from URL:", error)
+      setAuthError(error)
+      setIsAuthOpen(true)
+      
+      // Clear the error from the URL to prevent it from showing again on refresh
+      const newUrl = window.location.pathname
+      window.history.replaceState({}, document.title, newUrl)
+    }
+  }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleEmailPasswordSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle email/password authentication here
-  }
-
-  const handleGoogleSignIn = async () => {
+    setIsLoading(true)
+    setAuthError(null)
+    
     try {
-      setIsLoading(true)
-      await signIn("google", {
-        callbackUrl: "/dashboard",
-      })
+      // For login
+      if (isLogin) {
+        const result = await signIn('credentials', {
+          redirect: false,
+          email,
+          password,
+        })
+        
+        if (result?.error) {
+          setAuthError(result.error)
+        } else if (result?.ok) {
+          setIsAuthOpen(false)
+          router.push('/dashboard')
+        }
+      } 
+      // For signup
+      else {
+        // Make API call to your signup endpoint
+        const response = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name, email, password }),
+        })
+        
+        const data = await response.json()
+        
+        if (!response.ok) {
+          setAuthError(data.error || 'Failed to create account')
+        } else {
+          // Auto login after successful signup
+          const result = await signIn('credentials', {
+            redirect: false,
+            email,
+            password,
+          })
+          
+          if (result?.error) {
+            setAuthError(result.error)
+          } else if (result?.ok) {
+            setIsAuthOpen(false)
+            router.push('/dashboard')
+          }
+        }
+      }
     } catch (error) {
-      console.error("Error signing in with Google:", error)
+      console.error('Authentication error:', error)
+      setAuthError('An unexpected error occurred. Please try again.')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true)
+    try {
+      // Use redirect: true to ensure the user is redirected to the Google auth page
+      // and then to the dashboard after successful authentication
+      await signIn("google", { 
+        callbackUrl: "/dashboard",
+        redirect: true
+      })
+      // Note: Code after this point won't execute due to the redirect
+    } catch (error) {
+      console.error("Google sign-in error:", error)
+      setAuthError("Failed to sign in with Google. Please try again.")
+      setIsLoading(false)
+    }
+  }
+
+  // Return null during initial render to prevent hydration mismatches
+  if (!mounted) {
+    return null;
   }
 
   return (
@@ -154,6 +238,29 @@ export default function HomePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="mt-6 space-y-6">
+            {authError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
+                {authError === "OAuthSignin" 
+                  ? "There was a problem with Google sign-in. Please try again." 
+                  : authError === "OAuthCallback"
+                  ? "There was a problem with the Google callback. Please try again."
+                  : authError === "OAuthCreateAccount"
+                  ? "There was a problem creating your account. Please try again."
+                  : authError === "EmailCreateAccount"
+                  ? "There was a problem creating your account. Please try again."
+                  : authError === "Callback"
+                  ? "There was a problem with the authentication callback. Please try again."
+                  : authError === "OAuthAccountNotLinked"
+                  ? "This email is already associated with another account. Please sign in using the original provider."
+                  : authError === "EmailSignin"
+                  ? "There was a problem sending the email. Please try again."
+                  : authError === "CredentialsSignin"
+                  ? "The credentials you provided are invalid. Please try again."
+                  : authError === "SessionRequired"
+                  ? "You must be signed in to access this page."
+                  : "An error occurred during authentication. Please try again."}
+              </div>
+            )}
             <Button
               onClick={handleGoogleSignIn}
               disabled={isLoading}
@@ -183,7 +290,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleEmailPasswordSignIn} className="space-y-4">
               {!isLogin && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -196,6 +303,7 @@ export default function HomePage() {
                     placeholder="Enter your name"
                     className="w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:border-violet-500 dark:focus:border-violet-400"
                     required
+                    disabled={isLoading}
                   />
                 </div>
               )}
@@ -210,6 +318,7 @@ export default function HomePage() {
                   placeholder="Enter your email"
                   className="w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:border-violet-500 dark:focus:border-violet-400"
                   required
+                  disabled={isLoading}
                 />
               </div>
               <div>
@@ -223,13 +332,22 @@ export default function HomePage() {
                   placeholder="Enter your password"
                   className="w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:border-violet-500 dark:focus:border-violet-400"
                   required
+                  disabled={isLoading}
                 />
               </div>
               <Button
                 type="submit"
                 className="w-full bg-violet-600 hover:bg-violet-700 text-white py-2 rounded-lg"
+                disabled={isLoading}
               >
-                {isLogin ? "Login" : "Sign Up"}
+                {isLoading ? (
+                  <div className="flex items-center justify-center">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    {isLogin ? "Logging in..." : "Signing up..."}
+                  </div>
+                ) : (
+                  isLogin ? "Login" : "Sign Up"
+                )}
               </Button>
             </form>
 

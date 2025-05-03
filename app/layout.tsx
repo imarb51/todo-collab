@@ -18,11 +18,18 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const session = await getServerSession(authOptions)
+  // Try to get the session, but handle potential errors
+  let session = null;
+  try {
+    session = await getServerSession(authOptions);
+    // Silently get session without logging
+  } catch (error) {
+    // Silently handle session errors
+  }
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

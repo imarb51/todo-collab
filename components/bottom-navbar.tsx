@@ -2,10 +2,10 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Calendar, User } from "lucide-react"
+import { Home, Calendar, User, Users, LayoutGrid } from "lucide-react"
 
 interface BottomNavbarProps {
-  activePage?: "home" | "calendar" | "profile"
+  activePage?: "home" | "calendar" | "profile" | "friends" | "groups"
 }
 
 export function BottomNavbar({ activePage }: BottomNavbarProps) {
@@ -13,6 +13,8 @@ export function BottomNavbar({ activePage }: BottomNavbarProps) {
 
   const navItems = [
     { href: "/dashboard", icon: Home, label: "Home" },
+    { href: "/group-tasks", icon: LayoutGrid, label: "Groups" },
+    { href: "/friends", icon: Users, label: "Friends" },
     { href: "/calendar", icon: Calendar, label: "Calendar" },
     { href: "/profile", icon: User, label: "Profile" },
   ]
@@ -22,7 +24,12 @@ export function BottomNavbar({ activePage }: BottomNavbarProps) {
       <div className="max-w-md mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           {navItems.map(({ href, icon: Icon, label }) => {
-            const isActive = pathname === href || (href === "/dashboard" && activePage === "home")
+            const isActive = 
+              pathname === href || 
+              (href === "/dashboard" && activePage === "home") ||
+              (href === "/group-tasks" && activePage === "groups") ||
+              (href === "/friends" && activePage === "friends")
+              
             return (
               <Link
                 key={href}
@@ -33,7 +40,7 @@ export function BottomNavbar({ activePage }: BottomNavbarProps) {
                     : "text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-400"
                 }`}
               >
-                <Icon className="h-6 w-6" />
+                <Icon className="h-5 w-5" />
                 <span className="text-xs mt-1">{label}</span>
               </Link>
             )
