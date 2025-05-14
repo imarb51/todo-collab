@@ -9,17 +9,48 @@ export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
+      console.error("Session missing or user ID missing in session:", JSON.stringify(session));
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const userId = session.user.id;
-    // Fetch tasks for user
+    console.log("Fetching tasks for user ID:", userId);
 
+    // Attempt to resolve user in the database first
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true }
+    });
+
+    if (!user) {
+      console.error("User not found in database with ID:", userId);
+      if (session.user.email) {
+        // Try to find by email as fallback
+        const userByEmail = await prisma.user.findUnique({
+          where: { email: session.user.email },
+          select: { id: true }
+        });
+        
+        if (userByEmail) {
+          console.log("User found by email instead of ID");
+          // Use this ID instead
+          const tasks = await prisma.task.findMany({
+            where: { userId: userByEmail.id },
+            orderBy: { createdAt: "desc" },
+          });
+          return NextResponse.json(tasks);
+        }
+      }
+      return NextResponse.json([]);
+    }
+
+    // Fetch tasks for user
     const tasks = await prisma.task.findMany({
       where: { userId: userId },
       orderBy: { createdAt: "desc" },
     });
 
+    console.log(`Found ${tasks.length} tasks for user ${userId}`);
     return NextResponse.json(tasks);
   } catch (error) {
     console.error("Error fetching tasks:", error);
@@ -37,8 +68,14 @@ export async function POST(req: NextRequest) {
     
     // Ensure we have an authenticated user in the session
     if (!session?.user) {
+      console.error("No user in session:", JSON.stringify(session));
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    console.log("Creating task for session user:", {
+      id: session.user.id, 
+      email: session.user.email
+    });
 
     // Resolve the authenticated user in the database. This avoids
     // foreign-key violations caused by stale / invalid IDs coming from
@@ -47,16 +84,19 @@ export async function POST(req: NextRequest) {
 
     if (session.user.id) {
       dbUser = await prisma.user.findUnique({ where: { id: session.user.id } });
+      console.log("User lookup by ID result:", !!dbUser);
     }
 
     if (!dbUser && session.user.email) {
       dbUser = await prisma.user.findUnique({ where: { email: session.user.email } });
+      console.log("User lookup by email result:", !!dbUser);
     }
 
     // On very first OAuth sign-in the adapter may not have finished
     // writing the user yet. Create a minimal record if we still cannot
     // find one.
     if (!dbUser && session.user.email) {
+      console.log("Creating new user record for email:", session.user.email);
       dbUser = await prisma.user.create({
         data: {
           email: session.user.email,
@@ -64,13 +104,17 @@ export async function POST(req: NextRequest) {
           image: session.user.image || null,
         },
       });
+      console.log("New user created with ID:", dbUser.id);
     }
 
     if (!dbUser) {
+      console.error("Failed to resolve or create user");
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const userId = dbUser.id;
+    console.log("Resolved user ID for task creation:", userId);
+    
     const requestBody = await req.json();
     // Process request body
     
@@ -83,13 +127,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Handle subtasks - it's already a JSON string from the client
-    // No need to normalize or transform it further as Prisma expects a JSON value
-    // Process subtasks
-
-    // Make sure subtasks is handled correctly for SQLite's JSON storage
-    // SQLite doesn't natively support JSON, so we need to make sure it's a valid string
-    // that won't cause issues with the database
+    // Handle subtasks - ensure it's properly formatted for SQLite JSON storage
     let subtasksToStore;
     try {
       // Ensure subtasks is a valid JSON string - parse and re-stringify to normalize
@@ -102,13 +140,12 @@ export async function POST(req: NextRequest) {
         subtasksToStore = JSON.stringify(subtasks || []);
       }
     } catch (e) {
-      // Error processing subtasks
+      console.error("Error processing subtasks:", e);
       // Default to empty array if there's an error
       subtasksToStore = '[]';
     }
     
-    // Prepare subtasks for storage
-    
+    // Prepare task data with the resolved user ID
     const taskData = {
       title,
       category,
@@ -119,14 +156,40 @@ export async function POST(req: NextRequest) {
     };
     
     // Create task with prepared data
-    
     try {
       console.log('Creating task with data:', JSON.stringify(taskData));
-      const task = await prisma.task.create({
-        data: taskData,
+      
+      // Use a transaction to ensure data consistency
+      const task = await prisma.$transaction(async (tx) => {
+        // Double-check user exists in transaction
+        const userCheck = await tx.user.findUnique({
+          where: { id: userId },
+          select: { id: true }
+        });
+        
+        if (!userCheck) {
+          throw new Error(`User with ID ${userId} not found in transaction check`);
+        }
+        
+        return tx.task.create({
+          data: taskData,
+        });
       });
+      
       // Task created successfully
       console.log('Task created successfully:', JSON.stringify(task));
+      
+      // Verify task was actually saved
+      const savedTask = await prisma.task.findUnique({
+        where: { id: task.id }
+      });
+      
+      if (savedTask) {
+        console.log('Verified task was saved with ID:', task.id);
+      } else {
+        console.error('Task verification failed - not found after save');
+      }
+      
       return NextResponse.json(task, { status: 201 });
     } catch (createError: any) {
       // Handle database error
@@ -134,17 +197,13 @@ export async function POST(req: NextRequest) {
       throw new Error(`Database error: ${createError.message}`);
     }
   } catch (error: any) {
-    // Handle error
-    // Log more details about the error
-    if (error.code) {
-      // Log error code
-    }
-    if (error.meta) {
-      // Log error metadata
-    }
-    if (error.stack) {
-      // Log error stack
-    }
+    // Enhanced error logging
+    console.error("Task creation failed:", {
+      message: error.message,
+      code: error.code || 'unknown',
+      meta: error.meta || {},
+      stack: error.stack || ''
+    });
     
     return NextResponse.json(
       { error: "Failed to create task", details: error.message || "Unknown error" },

@@ -102,6 +102,26 @@ export async function PATCH(
     }
 
     const { title, completed, category, categoryColor, subtasks, dueDate } = await req.json();
+    
+    // Process subtasks to ensure proper storage format
+    let formattedSubtasks = undefined;
+    if (subtasks !== undefined) {
+      // Make sure subtasks are properly stringified for database storage
+      if (typeof subtasks === 'string') {
+        // If it's already a string, validate it's proper JSON
+        try {
+          // Parse to validate, then re-stringify to normalize
+          const parsed = JSON.parse(subtasks);
+          formattedSubtasks = JSON.stringify(parsed);
+        } catch (e) {
+          console.error('Invalid subtasks JSON string:', e);
+          formattedSubtasks = '[]';
+        }
+      } else {
+        // If it's not a string (e.g., it's an array), stringify it
+        formattedSubtasks = JSON.stringify(subtasks);
+      }
+    }
 
     const updatedTask = await prisma.task.update({
       where: { id: params.id },
@@ -110,7 +130,7 @@ export async function PATCH(
         completed: completed !== undefined ? completed : undefined,
         category: category !== undefined ? category : undefined,
         categoryColor: categoryColor !== undefined ? categoryColor : undefined,
-        subtasks: subtasks !== undefined ? subtasks : undefined,
+        subtasks: formattedSubtasks,
         dueDate: dueDate !== undefined ? new Date(dueDate) : undefined,
       },
     });

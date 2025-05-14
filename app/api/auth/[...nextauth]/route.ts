@@ -20,10 +20,43 @@ try {
   console.error("Error initializing PrismaAdapter:", error);
 }
 
+// Use the appropriate URL for callbacks
+const useSecure = process.env.NODE_ENV === 'production';
+
 export const authOptions: NextAuthOptions = {
   adapter,
   session: {
     strategy: "jwt", // Use JWT as a fallback even if adapter is available
+  },
+  useSecureCookies: useSecure,
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
+    },
+    callbackUrl: {
+      name: `next-auth.callback-url`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
+    },
+    csrfToken: {
+      name: `next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
+    }
   },
   providers: [
     GoogleProvider({
@@ -131,22 +164,35 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     async redirect({ url, baseUrl }) {
-  // If the URL is a relative URL (starts with /)
-  if (url.startsWith("/")) {
-    // For dashboard routes, ensure we go to the dashboard
-    if (url.includes("/dashboard")) {
-      return `${baseUrl}/dashboard`;
-    }
-
-      return `${baseUrl}${url}`;
-      } 
-      // If the URL is from the same origin
-      else if (new URL(url).origin === baseUrl) {
-        return url;
+      // Get the internal URL from environment variables if available
+      const internalUrl = process.env.NEXTAUTH_URL_INTERNAL;
+      
+      // Use the internal URL if set, otherwise use the base URL
+      const effectiveBaseUrl = internalUrl || baseUrl;
+      
+      console.log(`NextAuth redirect: url=${url}, baseUrl=${baseUrl}, effectiveBaseUrl=${effectiveBaseUrl}`);
+      
+      // If the URL is a relative URL (starts with /)
+      if (url.startsWith('/')) {
+        // For dashboard routes, ensure we go to the dashboard
+        if (url.includes('/dashboard')) {
+          return `${effectiveBaseUrl}/dashboard`;
+        }
+        return `${effectiveBaseUrl}${url}`;
       }
       
-      // Default fallback to baseUrl
-      return baseUrl;
+      // If it's an absolute URL from the same origin as either baseUrl or internalUrl
+      try {
+        const urlObj = new URL(url);
+        if (urlObj.origin === baseUrl || (internalUrl && urlObj.origin === internalUrl)) {
+          return url;
+        }
+      } catch (error) {
+        console.error('Error parsing URL:', error);
+      }
+      
+      // Default fallback to the effective base URL
+      return effectiveBaseUrl;
     },
   },
   secret: process.env.NEXTAUTH_SECRET,

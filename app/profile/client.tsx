@@ -1,38 +1,43 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { BottomNavbar } from "@/components/bottom-navbar"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
-import { Edit, Plus, Check, Clock, Sun, Moon, Monitor, Camera, Upload, Loader2 } from "lucide-react"
-import { AddFriendModal } from "@/components/add-friend-modal"
-import { ThemeSwitcher } from "@/components/theme-switcher"
-import { useTheme } from "next-themes"
-import { useSession } from "next-auth/react"
-import { useToast } from "@/hooks/use-toast"
+import { useState, useEffect } from "react";
+import { BottomNavbar } from "@/components/bottom-navbar";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { Edit, Plus, Check, Clock, Sun, Moon, Monitor, Camera, Upload, Loader2 } from "lucide-react";
+import { AddFriendModal } from "@/components/add-friend-modal";
+import { ThemeSwitcher } from "@/components/theme-switcher";
+import { useTheme } from "next-themes";
+import { useSession } from "next-auth/react";
+import { useToast } from "@/hooks/use-toast";
 
-// This will help suppress hydration warnings from browser extensions
-const ClientOnly = ({ children }: { children: React.ReactNode }) => {
-  const [isClient, setIsClient] = useState(false)
-  
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
-  
-  return isClient ? <>{children}</> : null
-}
+// Helper function to convert file to base64
+const convertFileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      resolve(reader.result as string);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
-export default function ProfilePage() {
+export default function ProfileClient() {
+  // Next.js hooks
   const { data: session, update: updateSession } = useSession();
   const { toast } = useToast();
+  const { theme } = useTheme();
+  
+  // State
+  const [isClient, setIsClient] = useState(false);
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [personalGoal, setPersonalGoal] = useState(
     "Complete 5 tasks every day and maintain a healthy work-life balance."
   );
-  const { theme } = useTheme();
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,16 +49,22 @@ export default function ProfilePage() {
     { id: 3, name: "Priya Sharma", avatar: "/placeholder.svg?height=40&width=40", status: "pending" },
   ];
 
+  // Client-side only rendering
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   // Load user data when the component mounts
   useEffect(() => {
-    if (session?.user) {
+    if (session?.user && isClient) {
       // Set the profile image from the session if available
       if (session.user.image) {
+        console.log("Setting profile image from session:", session.user.image.substring(0, 50) + "...");
         setProfileImage(session.user.image);
       }
       setIsLoading(false);
     }
-  }, [session]);
+  }, [session, isClient]);
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -86,43 +97,31 @@ export default function ProfilePage() {
 
       // Get updated user data
       const updatedUser = await response.json();
+      console.log("Updated user from API:", updatedUser);
       
       // Update the session with the new image
       await updateSession({
-        ...session,
-        user: {
-          ...session?.user,
-          image: base64Image,
-        },
+        user: updatedUser
       });
-
+      
       toast({
-        title: "Success",
-        description: "Profile image updated successfully",
+        title: "Profile updated successfully",
       });
     } catch (error) {
-      console.error('Error updating profile image:', error);
+      console.error("Error updating profile:", error);
       toast({
         title: "Error",
-        description: "Failed to update profile image",
-        variant: "destructive",
+        description: "Could not update profile",
       });
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Helper function to convert file to base64
-  const convertFileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve(reader.result as string);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
+  // If not yet on client, show nothing (avoid hydration mismatch)
+  if (!isClient) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 pb-20">
@@ -138,28 +137,23 @@ export default function ProfilePage() {
         {/* Profile Section */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6 mb-8">
           <div className="flex flex-col items-center">
-            {/* Profile Image */}
             <div className="relative mb-6">
-              <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
-                {isLoading ? (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Loader2 className="h-12 w-12 text-violet-500 animate-spin" />
-                  </div>
-                ) : profileImage ? (
-                  <img
-                    src={profileImage}
-                    alt="Profile"
-                    className="w-full h-full object-cover"
-                  />
+              <Avatar className="w-32 h-32">
+                {profileImage ? (
+                  <AvatarImage src={profileImage} alt="Profile image" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Camera className="h-12 w-12 text-gray-400 dark:text-gray-500" />
-                  </div>
+                  <AvatarFallback className="text-3xl">
+  {isLoading ? (
+    <div className="w-8 h-8 bg-gray-300 rounded-full animate-pulse" />
+  ) : (
+    session?.user?.name?.[0]
+  )}
+</AvatarFallback>
                 )}
-              </div>
+              </Avatar>
               <label
                 htmlFor="profile-image"
-                className={`absolute bottom-0 right-0 ${isSaving ? 'bg-gray-500' : 'bg-violet-600 hover:bg-violet-700'} text-white p-2 rounded-full cursor-pointer transition-colors duration-300 ${isSaving ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                className={`absolute bottom-0 right-0 ${isSaving ? 'bg-gray-500' : 'bg-violet-600 hover:bg-violet-700'} text-white p-2 rounded-full cursor-pointer transition-colors duration-300 ${isSaving ? 'cursor-not-allowed' : ''}`}
               >
                 {isSaving ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -249,34 +243,36 @@ export default function ProfilePage() {
             {friends.map((friend) => (
               <div key={friend.id} className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <Avatar>
+                  <Avatar className="w-10 h-10">
                     <AvatarImage src={friend.avatar} alt={friend.name} />
-                    <AvatarFallback>{friend.name.charAt(0)}</AvatarFallback>
+                    <AvatarFallback>{friend.name[0]}</AvatarFallback>
                   </Avatar>
-                  <span className="text-gray-800 dark:text-gray-100">{friend.name}</span>
+                  <div>
+                    <p className="font-medium text-gray-800 dark:text-gray-100">{friend.name}</p>
+                    {friend.status === "pending" && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Pending</p>
+                    )}
+                  </div>
                 </div>
                 {friend.status === "accepted" ? (
                   <div className="flex items-center text-green-500">
-                    <Check className="h-4 w-4 mr-1" />
-                    <span className="text-sm">Connected</span>
+                    <Check className="h-5 w-5" />
                   </div>
-                ) : (
+                ) : friend.status === "pending" ? (
                   <div className="flex items-center text-amber-500">
-                    <Clock className="h-4 w-4 mr-1" />
-                    <span className="text-sm">Pending</span>
+                    <Clock className="h-5 w-5" />
                   </div>
-                )}
+                ) : null}
               </div>
             ))}
           </div>
         </div>
       </main>
-
       {/* Add Friend Modal */}
       <AddFriendModal open={showAddFriendModal} onOpenChange={setShowAddFriendModal} />
 
       {/* Bottom Navigation */}
       <BottomNavbar activePage="profile" />
     </div>
-  )
+  );
 }

@@ -94,16 +94,35 @@ export function TaskList({ tasks = defaultTasks, onDeleteTask, onToggleTask, onT
       onToggleSubtask(id, subtaskId);
     } else {
       setLocalTasks(
-        localTasks.map((task) =>
-          task.id === id && task.subtasks
-            ? {
-                ...task,
-                subtasks: task.subtasks.map((subtask) =>
-                  subtask.id === subtaskId ? { ...subtask, completed: !subtask.completed } : subtask,
-                ),
+        localTasks.map((task) => {
+          if (task.id === id) {
+            // Check if subtasks exist
+            if (!task.subtasks) return task;
+            
+            // Create a proper array to work with
+            let subtasksArray;
+            if (typeof task.subtasks === 'string') {
+              try {
+                subtasksArray = JSON.parse(task.subtasks);
+              } catch (e) {
+                console.error('Error parsing subtasks:', e);
+                return task;
               }
-            : task,
-        ),
+            } else if (Array.isArray(task.subtasks)) {
+              subtasksArray = [...task.subtasks];
+            } else {
+              return task;
+            }
+            
+            // Update the completed status of the specific subtask
+            const updatedSubtasks = subtasksArray.map((subtask: { id: number; completed: boolean; [key: string]: any }) =>
+              subtask.id === subtaskId ? { ...subtask, completed: !subtask.completed } : subtask
+            );
+            
+            return { ...task, subtasks: updatedSubtasks };
+          }
+          return task;
+        })
       )
     }
   }
@@ -156,7 +175,7 @@ export function TaskList({ tasks = defaultTasks, onDeleteTask, onToggleTask, onT
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 relative z-0 pb-20">  {/* Added pb-20 for bottom padding and z-index */}
       {/* Delete Confirmation Dialog */}
       {taskToDelete && (
         <DeleteConfirmationDialog
@@ -197,7 +216,7 @@ export function TaskList({ tasks = defaultTasks, onDeleteTask, onToggleTask, onT
       <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
         <DialogTrigger asChild>
           <Button
-            className="fixed bottom-24 right-6 bg-violet-600 hover:bg-violet-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300"
+            className="fixed bottom-24 right-6 bg-violet-600 hover:bg-violet-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300 z-10"
           >
             <Plus className="h-6 w-6" />
           </Button>

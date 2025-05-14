@@ -172,7 +172,9 @@ export default function Dashboard() {
     const task = tasks.find(t => t.id === taskId);
     if (!task || !task.subtasks) return;
     
-    const updatedSubtasks = task.subtasks.map((subtask) =>
+    // Ensure subtasks is actually an array before using array methods
+    const subtasksArray = Array.isArray(task.subtasks) ? task.subtasks : [];
+    const updatedSubtasks = subtasksArray.map((subtask) =>
       subtask.id === subtaskId ? { ...subtask, completed: !completed } : subtask
     );
 
@@ -184,12 +186,14 @@ export default function Dashboard() {
     );
 
     try {
+      // Ensure subtasks are properly formatted before sending to the API
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          // Ensure we send an array that the API can properly handle
           subtasks: updatedSubtasks,
         }),
       });
@@ -255,7 +259,7 @@ export default function Dashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <CategorySection />
+          <CategorySection tasks={tasks} />
         </motion.div>
 
         {/* Tasks */}
@@ -263,7 +267,7 @@ export default function Dashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
-          style={{ marginTop: "3rem" }}
+          style={{ marginTop: "2rem", marginBottom: "5rem" }} // Increased spacing, added bottom margin
         >
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Today's Tasks</h2>
@@ -292,7 +296,9 @@ export default function Dashboard() {
               onToggleSubtask={(taskId, subtaskId) => {
                 const task = tasks.find(t => t.id === taskId);
                 if (task && task.subtasks) {
-                  const subtask = task.subtasks.find(st => st.id === subtaskId);
+                  // Ensure subtasks is actually an array before using array methods
+                  const subtasksArray = Array.isArray(task.subtasks) ? task.subtasks : [];
+                  const subtask = subtasksArray.find(st => st.id === subtaskId);
                   if (subtask) {
                     handleToggleSubtaskCompletion(taskId, subtaskId, subtask.completed);
                   }

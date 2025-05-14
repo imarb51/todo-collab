@@ -109,10 +109,22 @@ export default function HomePage() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     try {
+      // Detect if accessing from an IP address instead of localhost
+      const currentHost = window.location.host;
+      const isIPAccess = !currentHost.includes('localhost') && /^\d+\.\d+\.\d+\.\d+/.test(currentHost);
+      
+      // Use the current window location to determine the callback URL
+      const protocol = window.location.protocol;
+      const callbackUrl = isIPAccess
+        ? `${protocol}//${currentHost}/dashboard`  // Use IP address directly
+        : "/dashboard";  // Use relative URL for localhost
+      
+      console.log(`Initiating Google sign-in with callback: ${callbackUrl}`);
+      
       // Use redirect: true to ensure the user is redirected to the Google auth page
       // and then to the dashboard after successful authentication
       await signIn("google", { 
-        callbackUrl: "/dashboard",
+        callbackUrl: callbackUrl,
         redirect: true
       })
       // Note: Code after this point won't execute due to the redirect

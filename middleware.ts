@@ -10,11 +10,11 @@ function applyCSPHeaders(response: NextResponse) {
   return response;
 }
 
-// Apply withAuth middleware to protected routes
+// Main middleware that combines IP-based access handling with auth
 export default withAuth(
-  // Function that's called after authentication succeeds
   function middleware(req) {
-    // Apply CSP headers to the response
+    // We've already applied the auth check via withAuth
+    // Now just add our CSP headers
     return applyCSPHeaders(NextResponse.next());
   },
   {
@@ -30,7 +30,14 @@ export default withAuth(
 // Configure which routes use this middleware
 export const config = {
   matcher: [
-    // Only apply to dashboard routes
-    "/dashboard/:path*",
+    // Dashboard routes which require authentication
+    '/dashboard/:path*',
+    
+    // Add more protected routes as needed
+    '/friends/:path*',
+    '/group-tasks/:path*',
+    '/calendar/:path*',
+    '/profile/:path*',
   ],
 };
+

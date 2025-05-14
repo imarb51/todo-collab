@@ -6,13 +6,31 @@ import { PrismaClient } from '@prisma/client'
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient }
 
-export const prisma = globalForPrisma.prisma || new PrismaClient({
-  log: ['query', 'error', 'warn'],
-})
+// Create a new Prisma Client instance
+export const prisma = globalForPrisma.prisma || 
+  new PrismaClient({
+    log: ['query', 'error', 'warn'],
+  });
 
+// In development, keep a single connection
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
-// Log that the Prisma client has been initialized
-console.log('Prisma Client initialized:', !!prisma)
+// Test the connection and log result
+;(async () => {
+  try {
+    // Test the database connection with a simple query
+    await prisma.$queryRaw`SELECT 1+1 as result`;
+    console.log('🟢 Database connection successful');
+    
+    // Count users as another test
+    const userCount = await prisma.user.count();
+    console.log(`🟢 Database contains ${userCount} users`);
+    
+  } catch (e) {
+    console.error('🔴 Database connection failed:', e);
+  }
+})();
+
+console.log('Prisma Client initialized:', !!prisma);
 
 export default prisma
